@@ -36,15 +36,21 @@ FUJI MAKE VFD part Number:
 FRN0007C2S-4A
 
 Now the actual flow goes like:
-1. Arduino will get pressure on UDP port using ethernet shield.
-2. Arduino will process using PID logic and will give two output frequency for two VFDs.
-3. These two output frequency will be then sent to the two VFDs using MODBUS protocol on RS485 link.
-4. VFDs will be driving at these new frequency.
-5. Meanwhile if user wants to monitor or control the VFDs output frequency using GUI. GUI will be asking for the Information from        Arduino using UDP protocol. Arduino will be sending this information to the GUI as well as will stp or run the motor as per           commanded from the GUI
+1. Arduino will get pressure on UDP port using ethernet shield...
+2. Arduino will process using PID logic and will give two output frequency for two VFDs...
+3. These two output frequency will be then sent to the two VFDs using MODBUS protocol on RS485 link...
+4. VFDs will be driving at these new frequency...
+5. Meanwhile if user wants to monitor or control the VFDs output frequency using GUI. GUI will be asking for the Information from        Arduino using UDP protocol. Arduino will be sending this information to the GUI as well as will stp or run the motor as per           commanded from the GUI...
 
 Three GUI has been developed:
-1. VFD Controller: To monitor & to control the frequency of the motors. This GUI works on UDP protocol.
-2. Pressure Sender Simulator: This GUI only send pressure 
+Two GUIs have been developed just to simulate Pressure sender and VFD to check test the development...
+1. Pressure Sender Simulator: It is acting as Pressure sender installed near accumulator. This GUI only send pressure to the Arduino VFD Controller. Pressure can be varied with track bar from 0 - 8 BAR in the step of 0.01 BAR. This GUI works on UDP...
+2. MODBUS Simulator: It is acting like VFD. Only write one register of MODBUS fuction is supported with this GUI. Read one register is not programmed for this. This GUI works on MODBUS protocol. This should be connected to the serial port of the Arduino while any other program using serial port of the Arduino should be closed before...
+
+
+3. VFD Controller GUI shows the frequency of the both the motors, Also it shows the connection status of the VFDs. User can even control each motor and can run/stop individual motor.
+
+
 
 
 
