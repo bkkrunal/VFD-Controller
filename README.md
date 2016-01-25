@@ -48,24 +48,46 @@ Two GUIs have been developed just to simulate Pressure sender and VFD to check t
 2. MODBUS Simulator: It is acting like VFD. Only write one register of MODBUS fuction is supported with this GUI. Read one register is not programmed for this. This GUI works on MODBUS protocol. This should be connected to the serial port of the Arduino while any other program using serial port of the Arduino should be closed before...
 
 
-3. VFD Controller GUI shows the frequency of the both the motors, Also it shows the connection status of the VFDs. User can even control each motor and can run/stop individual motor.
+3. VFD Controller GUI shows the frequency of the both the motors, Also it shows the connection status of the VFDs. If any VFD is disconnected, it will show that in Red color else will be showing green in normal operation.
+User can even control each motor and can run/stop individual motor.
+We need to specify the IP address of the Arduino VFD controller to this GUI using settings tab(Default IP: 192.168.23.200).
+
+To simulate the system without VFD:
+To simulate the system you will need two computers with different IP address. One to act as server for monitoring & other to act as pressure sender.
+
+1. Hookup the Ethernet shield. Don't forget to short the INT jumper on bottom side of the official Arduino ethernet shield, as we are using interrupt based communication.
+
+2. Connect Arduino to the USB port. 
+
+3. Open MODBUS Simulator GUI & connect it to the serial port of the Arduino. 
+
+4. Open Pressure sender GUI in the same computer(This computer IP should be: 192.168.23.210).Run the GUI and Enter IP address as 192.168.23.200 & port as 1937. Press "Start Sending" button and it will start sending the pressure to 192.168.23.200 that is Arduino VFD controller.
+
+5. Open VFD Controller GUI in another computer(This computer IP should be: 192.168.23.211). You can see the frequncy of both motors.
+
+6. Now if you close  MODBUS Simulator GUI which is running on other PC, the background of the VFD dials in the VFD Controller GUI will turn red indicating that the communication link is brken. If you again start the  MODBUS Simulator GUI, the background color of the dials will turn green.
 
 
 
 
+Testing the system with VFD:
+
+1. Hookup the Ethernet shield. Don't forget to short the INT jumper on bottom side of the official Arduino ethernet shield, as we are 
+using interrupt based communication.
+
+2. For RS485 link, I had designed my own shield. You can use any RS485 shield. Code uses standard hardware arduino serial pins (0 & 1) for communicating over RS485 with pin 8 as direction control of RS485 as it is half duplex system.
+
+3. Power up VFD using 3phase supply & connect it to the arduino using RS485. (BE CAREFUL WITH THE THREE PHASE SUPPLY. CONNECT UNDER SUPERVSION OF EXPERIENCED ELECTRICIAN)
+
+4. Power Up the Arduin and connect it to the network using ethernet cable.
+
+5. Also power up the pressure sender and have it in the network. (I have implemented pressure sender using another arduino+ ethernet shield + analog pressure sensor)
+
+6. If everything is OK, it will start rotating the motor according to the pressure input. 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Default IPs:
+Arduino VFD Controller: 192.168.23.200
+Pressure Sender: 192.168.23.210
+Server IP(VFD Controller GUI): 192.168.23.211
+Default UDP Port: 1937
