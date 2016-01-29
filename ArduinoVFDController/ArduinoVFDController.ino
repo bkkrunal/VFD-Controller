@@ -1,3 +1,9 @@
+/*
+
+All pressure & frequency values are in multiple of 100... as per the requirement of VFD MODBUS register specifications
+
+*/
+
 #include <PID_v1.h>
 #include <SPI.h>         
 #include <Ethernet.h>
@@ -21,13 +27,10 @@ volatile uint8_t stop=0;
  
 double Frequencytobeset1,Frequencytobeset2;
 
-uint8_t ReceivedFrom=255, writeorread;
+uint8_t ReceivedFrom, writeorread;
 volatile boolean ReceivedSuccessPacket=false;
-uint8_t mydata;
 float frequency;
 double Pressure=0;
-char datano;
-volatile uint8_t sec,min,hour;
 uint8_t temp,add;
 char *datatoprocess;
 int packetSize;
@@ -39,7 +42,7 @@ unsigned char VFD_Receive_Buffer[20];			//To buffer the data received from VFD
 char buf_track=0;								//To track the VFD_Receive_Buffer
 unsigned char VFD_Send_Buffer[10];				//To buffer the data to be sent to VFD 
 
-double Fixed_Pressure = 4200;
+double Fixed_Pressure = 500;					//The pressure needs to be kept fixed at 5 BAR; (Multiplied by 100)
 
 // buffers for receiving and sending data
 char packetBuffer[UDP_TX_PACKET_MAX_SIZE];	//buffer to hold incoming packet on UDP Prt
@@ -54,28 +57,25 @@ unsigned int localPort = 1937;      // local port to listen on
 
 // An EthernetUDP instance to let us send and receive packets over UDP
 EthernetUDP Udp;
- IPAddress serverIP(192, 168, 23, 210); // here you have to write the server ip address that you need to provide service
- IPAddress PressureSender(192,168,23,211); //This is going to send the Pressure readings all the time
-
-
-//double Setpoint=Fixed_Pressure, Input = Pressure, Output = Frequencytoset;
-//PID myPID(&Pressure, &Frequencytobeset, &Fixed_Pressure, Kp, Ki, Kd, DIRECT);
-
-
+ IPAddress serverIP(192, 168, 23, 211); // here you have to write the server ip address that you need to provide service
+ IPAddress PressureSender(192,168,23,210); //This is going to send the Pressure readings all the time
+ 
 double Kp1=5, Ki1=0.05, Kd1=0.25;
 double Kp2=10, Ki2=0.05, Kd2=0.25;
 
+//Setpoint=Fixed_Pressure, Input = Pressure, Output = Frequencytoset
 PID Slave1PID(&Pressure, &Frequencytobeset1, &Fixed_Pressure, Kp1, Ki1, Kd1, DIRECT);
 PID Slave2PID(&Pressure, &Frequencytobeset2, &Fixed_Pressure, Kp2, Ki2, Kd2, DIRECT);
 
 
+
 typedef struct
  {
-	 volatile uint8_t SlaveID;
-     volatile uint8_t Connection;			//=1 Connected; =0 Disconnected
+	 uint8_t SlaveID;
+	 volatile uint8_t Connection;			//=1 Connected; =0 Disconnected
 	 uint8_t RunStopGUICMD;					//=1: Run, =0: Stop......... Default=1.... Command from GUI to run or to stop
 	 uint8_t RunningORStopped;				//=1: Running, 0: Stopped......... Default=0
-	
+	 uint16_t error;
  }  SlaveParameter;
 
 volatile SlaveParameter Slave[2];
@@ -130,25 +130,24 @@ void setup()
   interrupts();             
 	
   //Start PID Logic
-	Slave1PID.SetMode(AUTOMATIC);
-	Slave2PID.SetMode(AUTOMATIC);
+  Slave1PID.SetMode(AUTOMATIC);
+  Slave2PID.SetMode(AUTOMATIC);
 
-	//Max Output limit of PID
-	Slave1PID.SetOutputLimits(0,6000);	
-	Slave2PID.SetOutputLimits(0,6000);
+  //Max Output limit of PID
+  Slave1PID.SetOutputLimits(0,6000);	
+  Slave2PID.SetOutputLimits(0,6000);
 
 }
 
 
 void ProcessUDPPacket()
 {
-	packetSize = Udp.parsePacket();
+    packetSize = Udp.parsePacket();
     IPAddress remote = Udp.remoteIP();
     Udp.read(packetBuffer, UDP_TX_PACKET_MAX_SIZE);
-	packetBuffer[packetSize]=0;
+    packetBuffer[packetSize]=0;
 
-	W5100.writeSnIR(0, 0x3f);	//Clearing the Interrupt
-	
+	W5100.writeSnIR(0, 0x3f);	//Clearing the Interrupt	
 
 	if(packetBuffer[packetSize-1]=='#')	//Check for delimiter
 	 {
@@ -163,9 +162,8 @@ void ProcessUDPPacket()
 		if(remote == PressureSender && add==uint8_t(packetBuffer[packetSize-2]) )
 		{
 			datatoprocess = strtok(packetBuffer, ",");
-			datatoprocess = strtok(NULL, ",");	
-			Pressure= atoi(datatoprocess);
-			
+			datatoprocess = strtok(NULL, ",");	//Gets the string separated with ','
+			Pressure= atoi(datatoprocess);			
 		}
 
 		//Check if packet is from GUI & if chcksum matches
@@ -178,7 +176,8 @@ void ProcessUDPPacket()
 				stop = 0;
 			}
 			else if ( packetBuffer[1]=='0' && packetBuffer[2]=='V' && packetBuffer[4]=='S')		//To Stop the corresponding VFD
-			{				//10V1S
+			{			
+
 				vfdno = (packetBuffer[3]) - 48;
 				Slave[vfdno-1].RunStopGUICMD = 0;				
 				stop = 1;
@@ -210,8 +209,9 @@ void ProcessUDPPacket()
 								
 				uint8_t im1=0;
 
-				im1 = Slave[0].Connection;
-				im1 = 1 << im1;
+				//Add Connection status of each VFD
+				im1 = Slave[0].Connection;			
+				im1 = im1 << 1;
 				im1 = im1 | Slave[1].Connection;
 				im1 = im1 | (3<<6) ;				//Write with 7th & 6th bit to be one
 								
@@ -240,8 +240,6 @@ void ProcessUDPPacket()
 
 void loop()
 {
-	//Let's Implement PID Logic here... :-)
-	
 	uint8_t k;	
 
 	if (stop==1)	
@@ -250,7 +248,15 @@ void loop()
 		{	
 			if (Slave[k].RunStopGUICMD == 0 && Slave[k].RunningORStopped == 1)	
 			{
-				RunStopMotor(k,'S');	//Stop Motor if running when GUI asks to				
+				RunStopMotor(k,'S');	//Stop Motor if running when GUI asks to		
+				if (k == 0)
+				{
+					Frequencytobeset1 = 0;
+				}
+				else if (k == 1) 
+				{
+					Frequencytobeset2 = 0;
+				}
 			}
 		}
 	}
@@ -342,37 +348,6 @@ void RunStopMotor(uint8_t slno, char runstop)
 	
 }
 
-//This Function will read from VFD...
-void ReadFromMODBUS(char whattoread, uint8_t slno)
-{
-	VFD_Send_Buffer[0] = Slave[slno].SlaveID;
-	VFD_Send_Buffer[1] = 0x03;
-
-	if (whattoread=='E')
-	{		
-		VFD_Send_Buffer[2] = 0x08;
-		VFD_Send_Buffer[3] = 0x10;
-	}
-
-	VFD_Send_Buffer[4] = 0;
-	VFD_Send_Buffer[5] = 1;
-
-	crcf= CRC16_2(VFD_Send_Buffer,6);
-	VFD_Send_Buffer[6] = crcf & 0xff;	//crch
-	VFD_Send_Buffer[7] = crcf >> 8;	//crcl
-
-	Slave[slno].Connection = MODBUS_CareTaker(VFD_Send_Buffer,8,slno);	//Will store the return result into Connection status of that slave
-	
-	if (Slave[slno].Connection == 1)	//Check if Packet was successfully received, then Process the Packet
-	{
-		if (whattoread == 'E')
-		{
-			//VFD_Receive_Buffer[3] & VFD_Receive_Buffer[4] has error msg from VFD
-			//Slave[slno].error = ((VFD_Receive_Buffer[3]<<8) | VFD_Receive_Buffer[4]);
-		}
-	}
-}
-
 
 //Will return 1 if MODBUS communication is successful else 0
 uint8_t MODBUS_CareTaker(unsigned char *data,uint8_t noofdata, uint8_t slavno)	
@@ -405,8 +380,7 @@ uint8_t MODBUS_CareTaker(unsigned char *data,uint8_t noofdata, uint8_t slavno)
 	}
 }
 
-
-
+//Interrupt Service Routine for USART
 ISR(USART_RX_vect)
 {
 	temp = UDR0;
@@ -447,7 +421,7 @@ ISR(USART_RX_vect)
 			if((VFD_Receive_Buffer[buf_track-1] == (crcf&0xff)) && (VFD_Receive_Buffer[buf_track] == (crcf>>8)))
 			{
 				ReceivedSuccessPacket = true;	//Say a successful packet is received
-				//In this packet the register info that is read will be extracted by ReadFromMODBUS function
+				//In this packet the register info that is read can be extracted from VFD_Receive_Buffer[4] & VFD_Receive_Buffer[5]
 			}
 			buf_track = -1;		//Reset buf_track
 		}
@@ -459,15 +433,6 @@ void transmit(char data)
 {
   loop_until_bit_is_set(UCSR0A,UDRE0);
   UDR0=data;
-}
-
-void transmit_string(char *data)
-{
-  while(*data)
-  {
-    transmit(*data);
-    data++;
-  }   
 }
 
 uint8_t CalculateCheckSum(char *data)
